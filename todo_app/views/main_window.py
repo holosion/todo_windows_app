@@ -19,7 +19,7 @@ from ..controllers.statistics_controller import StatisticsController
 from ..controllers.task_controller import TaskController
 from ..database.db_manager import DatabaseManager
 from ..models.category import Category
-from ..utils.constants import APP_NAME
+from ..utils.constants import APP_NAME, APP_VERSION
 from ..utils.helpers import greeting_for_hour
 from ..utils.logger import get_logger
 from . import theme as theme_mod
@@ -54,6 +54,9 @@ class MainWindow(ctk.CTk):
 
         self.logger = get_logger("ui")
         self.base_dir = base_dir
+        self._focus_mode = False
+        self._sidebar_visible = True
+        self._tray_icon = None
 
         # ---------- Bootstrap controllers ---------------------------
         self.db = DatabaseManager(base_dir / "akena_todo.db")
@@ -108,6 +111,9 @@ class MainWindow(ctk.CTk):
         # Refresh views on focus so the user always sees fresh data
         self.bind("<FocusIn>", lambda _e: self._refresh_all_views())
 
+        # System tray support
+        self._setup_tray()
+
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
@@ -152,7 +158,7 @@ class MainWindow(ctk.CTk):
         footer = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         footer.grid(row=9, column=0, sticky="ew", padx=20, pady=20)
         ctk.CTkLabel(
-            footer, text="v1.0.0  •  Offline",
+            footer, text=f"v{APP_VERSION}  •  Offline",
             font=ctk.CTkFont(size=11),
             text_color=THEME.color("text_muted"),
         ).pack(anchor="w")
@@ -399,6 +405,12 @@ class MainWindow(ctk.CTk):
         self.bind_all("<space>", lambda _e: self._toggle_selected())
         self.bind_all("<Control-t>", lambda _e: self._on_toggle_theme())
         self.bind_all("<Control-T>", lambda _e: self._on_toggle_theme())
+        self.bind_all("<Control-F11>", lambda _e: self._toggle_focus_mode())
+        self.bind_all("<Escape>", lambda _e: self._exit_focus_if_active())
+
+    def _exit_focus_if_active(self) -> None:
+        if self._focus_mode:
+            self._toggle_focus_mode()
 
     def _save_shortcut(self) -> None:
         self.status_right.configure(text="Saved")
@@ -468,10 +480,15 @@ class MainWindow(ctk.CTk):
     # Close
     # ------------------------------------------------------------------
     def _on_close(self) -> None:
+        minimize_to_tray = self.settings_controller.get("minimize_to_tray", False)
+        if minimize_to_tray and self._tray_icon is not None:
+            self.withdraw()
+            return
         try:
             self.notification_service.stop()
         except Exception:
             pass
+        self._cleanup_tray()
         self.destroy()
 
     def destroy(self) -> None:  # type: ignore[override]
@@ -480,4 +497,84 @@ class MainWindow(ctk.CTk):
                 self.after_cancel(self._clock_id)
             except Exception:
                 pass
+        self._cleanup_tray()
         super().destroy()
+
+    # ------------------------------------------------------------------
+    # Focus Mode
+    # ------------------------------------------------------------------
+    def _toggle_focus_mode(self) -> None:
+        self._focus_mode = not self._focus_mode
+        if self._focus_mode:
+            self.sidebar.grid_forget()
+            self.topbar.grid_forget()
+            self.status.grid_forget()
+            self.content.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=0, pady=0)
+            self._show_exit_focus_hint()
+        else:
+            self.content.grid(row=0, column=1, sticky="nsew", padx=0, pady=(64, 28))
+            self.sidebar.grid(row=0, column=0, sticky="nsew")
+            self.topbar.grid(row=0, column=1, sticky="new", padx=0, pady=0)
+            self.status.grid(row=1, column=0, columnspan=2, sticky="ew")
+            if hasattr(self, '_focus_hint'):
+                self._focus_hint.destroy()
+
+    def _show_exit_focus_hint(self) -> None:
+        self._focus_hint = ctk.CTkLabel(
+            self, text="Press Ctrl+F11 to exit Focus Mode",
+            font=ctk.CTkFont(size=11), text_color=THEME.color("text_muted"),
+            fg_color=THEME.color("surface"), corner_radius=8, padx=12, pady=4,
+        )
+        self._focus_hint.place(relx=0.5, rely=0.02, anchor="n")
+        self.after(3000, lambda: self._focus_hint.destroy() if hasattr(self, '_focus_hint') else None)
+
+    # ------------------------------------------------------------------
+    # System Tray
+    # ------------------------------------------------------------------
+    def _setup_tray(self) -> None:
+        try:
+            import pystray
+            from PIL import Image, ImageDraw
+
+            def create_icon_image():
+                img = Image.new("RGBA", (64, 64), (14, 165, 233, 255))
+                draw = ImageDraw.Draw(img)
+                draw.rectangle([16, 12, 48, 52], fill="white")
+                draw.rectangle([20, 20, 44, 24], fill=(14, 165, 233))
+                draw.rectangle([20, 28, 44, 32], fill=(14, 165, 233))
+                draw.rectangle([20, 36, 36, 40], fill=(14, 165, 233))
+                return img
+
+            menu = pystray.Menu(
+                pystray.MenuItem("Show Akena Todo", self._tray_show, default=True),
+                pystray.MenuItem("Quit", self._tray_quit),
+            )
+            self._tray_icon = pystray.Icon(
+                "AkenaTodo", create_icon_image(), APP_NAME, menu
+            )
+            import threading
+            self._tray_thread = threading.Thread(target=self._tray_icon.run, daemon=True)
+            self._tray_thread.start()
+        except ImportError:
+            pass
+
+    def _tray_show(self, icon=None, item=None):
+        self.after(0, self._deiconify_and_raise)
+
+    def _deiconify_and_raise(self):
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    def _tray_quit(self, icon=None, item=None):
+        if self._tray_icon:
+            self._tray_icon.stop()
+        self.after(0, self.destroy)
+
+    def _cleanup_tray(self):
+        if self._tray_icon is not None:
+            try:
+                self._tray_icon.stop()
+            except Exception:
+                pass
+            self._tray_icon = None

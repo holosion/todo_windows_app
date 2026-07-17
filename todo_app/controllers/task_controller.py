@@ -27,6 +27,50 @@ class TaskController:
         self.logger = get_logger("controller.task")
 
     # ------------------------------------------------------------------
+    # Subtasks
+    # ------------------------------------------------------------------
+    def add_subtask(self, task_id: int, title: str) -> Optional["Subtask"]:
+        from ..models.subtask import Subtask
+        with self.db.session() as session:
+            task = session.get(Task, task_id)
+            if task is None:
+                return None
+            max_idx = max((s.sort_index for s in task.subtasks), default=-1)
+            sub = Subtask(task_id=task_id, title=title.strip(), sort_index=max_idx + 1)
+            session.add(sub)
+            session.flush()
+            session.refresh(sub)
+            self.logger.info("Added subtask to task #%s: '%s'", task_id, title)
+            return sub
+
+    def toggle_subtask(self, subtask_id: int) -> Optional["Subtask"]:
+        from ..models.subtask import Subtask
+        with self.db.session() as session:
+            sub = session.get(Subtask, subtask_id)
+            if sub is None:
+                return None
+            sub.toggle()
+            return sub
+
+    def delete_subtask(self, subtask_id: int) -> bool:
+        from ..models.subtask import Subtask
+        with self.db.session() as session:
+            sub = session.get(Subtask, subtask_id)
+            if sub is None:
+                return False
+            session.delete(sub)
+            return True
+
+    def update_subtask(self, subtask_id: int, title: str) -> Optional["Subtask"]:
+        from ..models.subtask import Subtask
+        with self.db.session() as session:
+            sub = session.get(Subtask, subtask_id)
+            if sub is None:
+                return None
+            sub.title = title.strip()
+            return sub
+
+    # ------------------------------------------------------------------
     # CRUD
     # ------------------------------------------------------------------
     def create_task(
@@ -47,6 +91,8 @@ class TaskController:
         pinned: bool = False,
         favorite: bool = False,
         progress: int = 0,
+        tags: str = "",
+        subtask_titles: Optional[list] = None,
     ) -> Task:
         """Create and persist a new task."""
         title = (title or "").strip()
@@ -85,10 +131,17 @@ class TaskController:
                 color_tag=color_tag,
                 pinned=pinned,
                 favorite=favorite,
+                tags=tags or "",
                 sort_index=next_index,
             )
             session.add(task)
             session.flush()
+            # Add subtasks
+            if subtask_titles:
+                from ..models.subtask import Subtask
+                for i, st_title in enumerate(subtask_titles):
+                    sub = Subtask(task_id=task.id, title=st_title.strip(), sort_index=i)
+                    session.add(sub)
             self._log_activity(
                 session,
                 action="task_created",
@@ -119,6 +172,7 @@ class TaskController:
             "pinned",
             "favorite",
             "attachments",
+            "tags",
         }
         with self.db.session() as session:
             task = session.get(Task, task_id)
@@ -597,3 +651,43 @@ class TaskController:
         session.add(
             ActivityLog(action=action, description=description, icon=icon)
         )
+
+    # ------------------------------------------------------------------
+    # Export / Import (JSON)
+    # ------------------------------------------------------------------
+    def export_tasks_json(self, path: str) -> int:
+        """Export all non-archived tasks to a JSON file. Returns count."""
+        import json
+        tasks = self.list_tasks(include_archived=False)
+        data = [t.to_dict() for t in tasks]
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        self.logger.info("Exported %d tasks to %s", len(data), path)
+        return len(data)
+
+    def import_tasks_json(self, path: str) -> int:
+        """Import tasks from a JSON file. Returns count imported."""
+        import json
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        count = 0
+        for item in data:
+            try:
+                subtask_titles = [s["title"] for s in item.get("subtasks", []) if s.get("title")]
+                self.create_task(
+                    title=item["title"],
+                    description=item.get("description", ""),
+                    notes=item.get("notes", ""),
+                    category=item.get("category"),
+                    priority=item.get("priority", "Medium"),
+                    status=item.get("status", "Not Started"),
+                    repeat=item.get("repeat", "None"),
+                    color_tag=item.get("color_tag", "#0EA5E9"),
+                    tags=item.get("tags", ""),
+                    subtask_titles=subtask_titles or None,
+                )
+                count += 1
+            except Exception as exc:
+                self.logger.warning("Failed to import task '%s': %s", item.get("title"), exc)
+        self.logger.info("Imported %d tasks from %s", count, path)
+        return count

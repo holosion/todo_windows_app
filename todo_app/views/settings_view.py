@@ -169,6 +169,11 @@ class SettingsView(ctk.CTkFrame):
         ctk.CTkCheckBox(
             notifications, text="Confetti when all daily tasks done",
             variable=self.confetti_var,
+        ).pack(anchor="w", padx=20, pady=2)
+        self.tray_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            notifications, text="Minimize to system tray on close",
+            variable=self.tray_var,
         ).pack(anchor="w", padx=20, pady=(2, 12))
 
         # --- Pomodoro ------------------------------------------------
@@ -196,6 +201,10 @@ class SettingsView(ctk.CTkFrame):
         SecondaryButton(btn_row, text="  Export DB", command=self._on_export) \
             .pack(side="left", padx=4)
         SecondaryButton(btn_row, text="  Import DB", command=self._on_import) \
+            .pack(side="left", padx=4)
+        SecondaryButton(btn_row, text="  Export JSON", command=self._on_export_json) \
+            .pack(side="left", padx=4)
+        SecondaryButton(btn_row, text="  Import JSON", command=self._on_import_json) \
             .pack(side="left", padx=4)
         SecondaryButton(btn_row, text="  Reset to Defaults", command=self._on_reset) \
             .pack(side="left", padx=4)
@@ -239,6 +248,7 @@ class SettingsView(ctk.CTkFrame):
         self.notif_var.set(bool(s.get("notifications_enabled", True)))
         self.sound_var.set(bool(s.get("sound_enabled", True)))
         self.confetti_var.set(bool(s.get("confetti_enabled", True)))
+        self.tray_var.set(bool(s.get("minimize_to_tray", False)))
         self.pomo_work.delete(0, "end"); self.pomo_work.insert(0, str(s.get("pomodoro_work", 25)))
         self.pomo_short.delete(0, "end"); self.pomo_short.insert(0, str(s.get("pomodoro_short_break", 5)))
         self.pomo_long.delete(0, "end"); self.pomo_long.insert(0, str(s.get("pomodoro_long_break", 15)))
@@ -265,6 +275,7 @@ class SettingsView(ctk.CTkFrame):
                 "notifications_enabled": bool(self.notif_var.get()),
                 "sound_enabled": bool(self.sound_var.get()),
                 "confetti_enabled": bool(self.confetti_var.get()),
+                "minimize_to_tray": bool(self.tray_var.get()),
                 "pomodoro_work": int(self.pomo_work.get() or 25),
                 "pomodoro_short_break": int(self.pomo_short.get() or 5),
                 "pomodoro_long_break": int(self.pomo_long.get() or 15),
@@ -360,6 +371,34 @@ class SettingsView(ctk.CTkFrame):
             messagebox.showinfo("Imported", "Database imported. Please restart the app.",
                                 parent=self)
         except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Error", f"Import failed: {exc}", parent=self)
+
+    def _on_export_json(self) -> None:
+        path = filedialog.asksaveasfilename(
+            title="Export tasks as JSON",
+            defaultextension=".json",
+            filetypes=[("JSON file", "*.json")],
+            initialfile="akena_todo_export.json",
+        )
+        if not path:
+            return
+        try:
+            count = self.task_controller.export_tasks_json(path)
+            messagebox.showinfo("Exported", f"Exported {count} tasks to:\n{path}", parent=self)
+        except Exception as exc:
+            messagebox.showerror("Error", f"Export failed: {exc}", parent=self)
+
+    def _on_import_json(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Select JSON file to import",
+            filetypes=[("JSON file", "*.json")],
+        )
+        if not path:
+            return
+        try:
+            count = self.task_controller.import_tasks_json(path)
+            messagebox.showinfo("Imported", f"Imported {count} tasks from JSON.", parent=self)
+        except Exception as exc:
             messagebox.showerror("Error", f"Import failed: {exc}", parent=self)
 
     def _on_restore(self, backup_id: int) -> None:

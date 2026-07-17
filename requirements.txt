@@ -5,3 +5,4 @@ plyer>=2.1.0
 matplotlib>=3.8.0
 Pillow>=10.0.0
 pyinstaller>=6.3.0
+pystray>=0.19.0

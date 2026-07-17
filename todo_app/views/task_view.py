@@ -380,6 +380,32 @@ class TaskView(ctk.CTkFrame):
                 anchor="w",
             ).grid(row=2, column=0, sticky="ew", pady=(2, 0))
 
+        # Tags
+        if task.tags:
+            tags_frame = ctk.CTkFrame(info, fg_color="transparent")
+            tags_frame.grid(row=3, column=0, sticky="ew", pady=(2, 0))
+            for tag in task.tags.split(","):
+                tag = tag.strip()
+                if tag:
+                    ctk.CTkLabel(
+                        tags_frame, text=f"#{tag}",
+                        font=ctk.CTkFont(size=10), text_color=THEME.color("accent"),
+                        fg_color=THEME.color("surface_alt"), corner_radius=8,
+                        padx=6, pady=1,
+                    ).pack(side="left", padx=(0, 4))
+
+        # Subtasks
+        if task.subtasks:
+            done = sum(1 for s in task.subtasks if s.is_done)
+            total = len(task.subtasks)
+            ctk.CTkLabel(
+                info,
+                text=f"\u2611 {done}/{total} subtasks",
+                text_color=THEME.color("success") if done == total else THEME.color("text_muted"),
+                font=ctk.CTkFont(size=11),
+                anchor="w",
+            ).grid(row=4, column=0, sticky="ew", pady=(2, 0))
+
         # Progress bar
         if task.progress and not task.is_completed():
             bar = ThemedProgressBar(info, height=6, corner_radius=4)

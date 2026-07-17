@@ -10,6 +10,8 @@ from .notification import Notification
 from .pomodoro import PomodoroSession
 from .backup import Backup
 from .activity import ActivityLog
+from .subtask import Subtask
+from .template import TaskTemplate
 
 __all__ = [
     "Task",
@@ -19,4 +21,6 @@ __all__ = [
     "PomodoroSession",
     "Backup",
     "ActivityLog",
+    "Subtask",
+    "TaskTemplate",
 ]

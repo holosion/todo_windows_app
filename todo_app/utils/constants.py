@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 # App identity
 # ---------------------------------------------------------------------------
 APP_NAME: str = "Akena Todo"
-APP_VERSION: str = "1.0.0"
+APP_VERSION: str = "2.0.0"
 APP_AUTHOR: str = "Akena"
 
 # ---------------------------------------------------------------------------

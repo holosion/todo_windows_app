@@ -81,9 +81,20 @@ class Task(Base):
     attachments: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
     # ------------------------------------------------------------------
+    # Tags (comma-separated string, e.g. "urgent,backend,api")
+    # ------------------------------------------------------------------
+    tags: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+
+    # ------------------------------------------------------------------
     # Ordering - used for drag-and-drop reordering
     # ------------------------------------------------------------------
     sort_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # ------------------------------------------------------------------
+    # Subtasks (one-to-many)
+    # ------------------------------------------------------------------
+    subtasks = relationship("Subtask", back_populates="task",
+                            cascade="all, delete-orphan", lazy="selectin")
 
     # ------------------------------------------------------------------
     # Convenience
@@ -116,6 +127,7 @@ class Task(Base):
             "category": self.category.name if self.category else None,
             "priority": self.priority,
             "color_tag": self.color_tag,
+            "tags": self.tags,
             "start_date": self.start_date.isoformat() if self.start_date else None,
             "due_date": self.due_date.isoformat() if self.due_date else None,
             "due_time": self.due_time.isoformat() if self.due_time else None,
@@ -133,6 +145,7 @@ class Task(Base):
                 self.completed_at.isoformat() if self.completed_at else None
             ),
             "attachments": self.attachments,
+            "subtasks": [s.to_dict() for s in self.subtasks] if self.subtasks else [],
         }
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper

@@ -1,0 +1,49 @@
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# --- Virtual environments --------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# --- PyInstaller builds ----------------------------------------------------
+build/
+dist/
+*.spec.bak
+*.manifest
+
+# --- Runtime data (created by the app) -------------------------------------
+# Database, logs, backups, exports — keep out of version control.
+todo_app_data/
+todo_app/backups/*
+!todo_app/backups/.gitkeep
+todo_app/exports/*
+!todo_app/exports/.gitkeep
+
+# --- IDE / editor ----------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Test / coverage -------------------------------------------------------
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache/
+
+# --- Logs / temp -----------------------------------------------------------
+*.log
+*.tmp
+*.bak
