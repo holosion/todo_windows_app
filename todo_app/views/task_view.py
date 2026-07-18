@@ -187,12 +187,9 @@ class TaskView(ctk.CTkFrame):
     # Event handlers
     # ------------------------------------------------------------------
     def _on_new(self) -> None:
-        categories = self.task_controller.db.session()
-        try:
+        with self.task_controller.db.session() as categories:
             from ..models.category import Category as _Cat
             cats = categories.query(_Cat).all()
-        finally:
-            categories.close()
         dlg = TaskEditorDialog(
             self.winfo_toplevel(),
             categories=cats,
@@ -464,12 +461,9 @@ class TaskView(ctk.CTkFrame):
         self._after_change(task.id)
 
     def _on_edit(self, task: Task) -> None:
-        categories = self.task_controller.db.session()
-        try:
+        with self.task_controller.db.session() as categories:
             from ..models.category import Category as _Cat
             cats = categories.query(_Cat).all()
-        finally:
-            categories.close()
         defaults = {
             "title": task.title,
             "description": task.description,

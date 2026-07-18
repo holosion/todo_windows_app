@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import datetime as _dt
-from typing import List
+from typing import Callable, List, Optional
 
 import customtkinter as ctk
 
@@ -10,6 +10,7 @@ from ..controllers.task_controller import TaskController
 from ..models.task import Task
 from ..utils.constants import STATUS_COLORS
 from ..utils.helpers import format_time, humanize_duration
+from .task_editor import TaskEditorDialog
 from .theme import THEME
 from .widgets import Card, SectionHeader
 
@@ -17,9 +18,15 @@ from .widgets import Card, SectionHeader
 class PlannerView(ctk.CTkFrame):
     """A vertical timeline of the user's day."""
 
-    def __init__(self, master, task_controller: TaskController) -> None:
+    def __init__(
+        self,
+        master,
+        task_controller: TaskController,
+        on_change: Optional[Callable[[], None]] = None,
+    ) -> None:
         super().__init__(master, fg_color="transparent")
         self.task_controller = task_controller
+        self.on_change = on_change
         self._build()
 
     def _build(self) -> None:
@@ -57,6 +64,12 @@ class PlannerView(ctk.CTkFrame):
             date_row, text="Next  \u25B6", width=80, height=32,
             command=lambda: self._shift(1),
         ).pack(side="right", padx=4)
+        ctk.CTkButton(
+            date_row, text="+ Plan task", width=100, height=32,
+            fg_color=THEME.color("accent"),
+            hover_color=THEME.color("accent_hover"),
+            command=self._on_plan_task,
+        ).pack(side="right", padx=(4, 16))
 
         body = Card(self)
         body.grid(row=2, column=0, sticky="nsew", padx=24, pady=(0, 16))
@@ -96,13 +109,13 @@ class PlannerView(ctk.CTkFrame):
             if t.due_time:
                 slots[t.due_time.hour].append(t)
 
-        any_block = False
         for hour in range(24):
             block_tasks = slots[hour]
             self._build_slot(hour, block_tasks)
-            if block_tasks:
-                any_block = True
-        if not any_block:
+        unscheduled = [task for task in tasks if task.due_time is None]
+        if unscheduled:
+            self._build_unscheduled_section(unscheduled)
+        if not tasks:
             ctk.CTkLabel(
                 self.timeline,
                 text="Nothing scheduled for this day. \U0001F60A",
@@ -134,11 +147,11 @@ class PlannerView(ctk.CTkFrame):
             ).grid(row=0, column=1, sticky="w", pady=8)
             return
 
-        for t in tasks:
+        for index, t in enumerate(tasks):
             card = ctk.CTkFrame(
                 row, fg_color=THEME.color("surface_alt"), corner_radius=10
             )
-            card.grid(row=0, column=1, sticky="ew", pady=2)
+            card.grid(row=index, column=1, sticky="ew", pady=2)
             card.grid_columnconfigure(1, weight=1)
             ctk.CTkLabel(
                 card,
@@ -182,3 +195,46 @@ class PlannerView(ctk.CTkFrame):
                 corner_radius=10, padx=10, pady=2,
                 font=ctk.CTkFont(size=11, weight="bold"),
             ).grid(row=0, column=2, padx=10, pady=8, sticky="e")
+
+    def _build_unscheduled_section(self, tasks: List[Task]) -> None:
+        """Display date-only tasks instead of silently omitting them."""
+        row = ctk.CTkFrame(self.timeline, fg_color="transparent")
+        row.grid(row=24, column=0, sticky="ew", padx=8, pady=(16, 4))
+        row.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            row, text="Any time", width=60, anchor="e",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=THEME.color("text_muted"),
+        ).grid(row=0, column=0, padx=(0, 12), sticky="n", pady=8)
+        items = ctk.CTkFrame(row, fg_color="transparent")
+        items.grid(row=0, column=1, sticky="ew")
+        items.grid_columnconfigure(0, weight=1)
+        for index, task in enumerate(tasks):
+            ctk.CTkLabel(
+                items, text=task.title, anchor="w", padx=12, pady=8,
+                corner_radius=8, fg_color=THEME.color("surface_alt"),
+                text_color=THEME.color("text"),
+            ).grid(row=index, column=0, sticky="ew", pady=2)
+
+    def _on_plan_task(self) -> None:
+        with self.task_controller.db.session() as session:
+            from ..models.category import Category
+            categories = session.query(Category).all()
+        dialog = TaskEditorDialog(
+            self.winfo_toplevel(),
+            categories=categories,
+            defaults={"start_date": self.current_date, "due_date": self.current_date},
+            title=f"Plan task for {self.current_date.isoformat()}",
+        )
+        data = dialog.show()
+        if data is None:
+            return
+        try:
+            self.task_controller.create_task(**data)
+        except Exception as exc:  # noqa: BLE001
+            from tkinter import messagebox
+            messagebox.showerror("Error", f"Could not create task: {exc}", parent=self)
+            return
+        self.refresh()
+        if self.on_change:
+            self.on_change()

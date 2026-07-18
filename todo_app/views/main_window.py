@@ -301,7 +301,10 @@ class MainWindow(ctk.CTk):
                 on_change=self._refresh_all_views,
             )
         if key == "planner":
-            return PlannerView(self.content, self.task_controller)
+            return PlannerView(
+                self.content, self.task_controller,
+                on_change=self._refresh_all_views,
+            )
         if key == "calendar":
             return CalendarView(self.content, self.task_controller)
         if key == "stats":
