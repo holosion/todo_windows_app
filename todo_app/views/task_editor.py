@@ -282,6 +282,27 @@ class TaskEditorDialog(ctk.CTkToplevel):
         if not title:
             self._flash(self.title_entry, "Title is required")
             return
+
+        # DateEntry permits typing directly into its field.  Retrieve and
+        # validate dates here so an invalid value cannot make the Save button
+        # appear to do nothing because of an unhandled widget exception.
+        try:
+            start_date = self.start_date.get_date()
+            due_date = self.due_date.get_date()
+        except Exception:  # noqa: BLE001
+            self._show_validation_error("Use dates in YYYY-MM-DD format.")
+            return
+        if start_date and due_date and due_date < start_date:
+            self._show_validation_error("Due date cannot be before the start date.")
+            return
+
+        due_time_text = self.due_time.get().strip()
+        due_time = parse_time(due_time_text)
+        if due_time_text and due_time is None:
+            self._show_validation_error("Use a valid time in HH:MM format.")
+            self.due_time.focus_set()
+            return
+
         reminder_label = self.reminder_combo.get()
         reminder_mins = 0
         for label, mins in REMINDER_OPTIONS:
@@ -291,7 +312,13 @@ class TaskEditorDialog(ctk.CTkToplevel):
         try:
             duration = int(self.duration_entry.get()) if self.duration_entry.get() else None
         except ValueError:
-            duration = None
+            self._show_validation_error("Estimated duration must be a whole number of minutes.")
+            self.duration_entry.focus_set()
+            return
+        if duration is not None and duration <= 0:
+            self._show_validation_error("Estimated duration must be greater than zero.")
+            self.duration_entry.focus_set()
+            return
         self._result = {
             "title": title,
             "description": self.description_text.get("1.0", "end").strip(),
@@ -300,9 +327,9 @@ class TaskEditorDialog(ctk.CTkToplevel):
             "priority": self.priority_combo.get(),
             "status": self.status_combo.get(),
             "repeat": self.repeat_combo.get(),
-            "start_date": self.start_date.get_date(),
-            "due_date": self.due_date.get_date(),
-            "due_time": parse_time(self.due_time.get()),
+            "start_date": start_date,
+            "due_date": due_date,
+            "due_time": due_time,
             "estimated_duration": duration,
             "reminder_minutes": reminder_mins,
             "color_tag": self.color_var.get(),
@@ -314,6 +341,10 @@ class TaskEditorDialog(ctk.CTkToplevel):
         }
         self.grab_release()
         self.destroy()
+
+    def _show_validation_error(self, message: str) -> None:
+        from tkinter import messagebox
+        messagebox.showerror("Cannot save task", message, parent=self)
 
     def _on_cancel(self) -> None:
         self._result = None

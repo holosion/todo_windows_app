@@ -32,7 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='todo_app/assets/akena_todo.ico',
+    icon=['todo_app\\assets\\akena_todo.ico'],
 )
 coll = COLLECT(
     exe,
