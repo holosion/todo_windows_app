@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable, Dict, Optional
 
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import TclError, messagebox
 
 from ..controllers.activity_controller import ActivityController
 from ..controllers.backup_controller import BackupController
@@ -80,10 +80,13 @@ class MainWindow(ctk.CTk):
         self.geometry("1280x820")
         self.minsize(1100, 720)
         self.configure(fg_color=THEME.color("bg"))
+        self._app_icon_path = (
+            Path(__file__).resolve().parent.parent / "assets" / "akena_todo.ico"
+        )
         try:
-            self.iconbitmap(default="")
-        except Exception:
-            pass
+            self.iconbitmap(default=str(self._app_icon_path))
+        except (OSError, TclError):
+            self.logger.warning("Could not load window icon: %s", self._app_icon_path)
 
         # ---------- Layout -----------------------------------------
         self.grid_columnconfigure(1, weight=1)
@@ -534,16 +537,10 @@ class MainWindow(ctk.CTk):
     def _setup_tray(self) -> None:
         try:
             import pystray
-            from PIL import Image, ImageDraw
+            from PIL import Image
 
             def create_icon_image():
-                img = Image.new("RGBA", (64, 64), (14, 165, 233, 255))
-                draw = ImageDraw.Draw(img)
-                draw.rectangle([16, 12, 48, 52], fill="white")
-                draw.rectangle([20, 20, 44, 24], fill=(14, 165, 233))
-                draw.rectangle([20, 28, 44, 32], fill=(14, 165, 233))
-                draw.rectangle([20, 36, 36, 40], fill=(14, 165, 233))
-                return img
+                return Image.open(self._app_icon_path).convert("RGBA")
 
             menu = pystray.Menu(
                 pystray.MenuItem("Show Akena Todo", self._tray_show, default=True),

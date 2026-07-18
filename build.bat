@@ -42,6 +42,7 @@ REM --- Run PyInstaller --------------------------------------------------------
 echo [INFO] Building executable with PyInstaller ...
 python -m PyInstaller --noconfirm --clean --onedir --windowed ^
     --name AkenaTodo ^
+    --icon "todo_app\assets\akena_todo.ico" ^
     --add-data "todo_app;todo_app" ^
     --add-data "LICENSE;LICENSE" ^
     --hidden-import customtkinter ^
