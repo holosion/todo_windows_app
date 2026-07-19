@@ -5,6 +5,7 @@ Task model. The view layer never touches the database directly.
 """
 from __future__ import annotations
 
+import calendar
 import datetime as _dt
 from typing import Iterable, List, Optional
 
