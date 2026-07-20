@@ -117,7 +117,7 @@ class QuickAddDialog(ctk.CTkToplevel):
         PrimaryButton(btn_row, text="Add Task", command=self._on_save) \
             .grid(row=0, column=1, sticky="ew", padx=(4, 0))
 
-    def _populate(self) -> None:
+def _populate(self) -> None:
         d = self._defaults
         if d.get("category"):
             self.category_combo.set(d["category"])
@@ -125,6 +125,13 @@ class QuickAddDialog(ctk.CTkToplevel):
             self.priority_combo.set(d["priority"])
         if d.get("due_date"):
             self.date_entry.set_date(d["due_date"])
+        if d.get("due_time"):
+            # due_time expected as datetime.time object
+            self.time_entry.delete(0, "end")
+            self.time_entry.insert(0, d["due_time"].strftime("%H:%M"))
+        if d.get("estimated_duration") is not None:
+            self.duration_entry.delete(0, "end")
+            self.duration_entry.insert(0, str(d["estimated_duration"]))
         for label, mins in REMINDER_OPTIONS:
             if mins == d.get("reminder_minutes", 0):
                 self.reminder_combo.set(label)

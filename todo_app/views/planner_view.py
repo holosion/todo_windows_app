@@ -139,12 +139,20 @@ class PlannerView(ctk.CTkFrame):
         time_label.grid(row=0, column=0, padx=(0, 12), sticky="ne", pady=8)
 
         if not tasks:
-            ctk.CTkLabel(
+            # empty slot - make clickable to add a task at this hour
+            empty_label = ctk.CTkLabel(
                 row,
                 text="—",
                 text_color=THEME.color("text_muted"),
                 font=ctk.CTkFont(size=12),
-            ).grid(row=0, column=1, sticky="w", pady=8)
+            )
+            empty_label.grid(row=0, column=1, sticky="w", pady=8)
+            # make the whole row clickable
+            row.configure(cursor="hand2")
+            row.bind("<Button-1>", lambda e, h=hour: self._on_slot_click(h))
+            # also make the label clickable (optional)
+            empty_label.configure(cursor="hand2")
+            empty_label.bind("<Button-1>", lambda e, h=hour: self._on_slot_click(h))
             return
 
         for index, t in enumerate(tasks):
@@ -201,6 +209,9 @@ class PlannerView(ctk.CTkFrame):
         row = ctk.CTkFrame(self.timeline, fg_color="transparent")
         row.grid(row=24, column=0, sticky="ew", padx=8, pady=(16, 4))
         row.grid_columnconfigure(1, weight=1)
+        # make the whole row clickable to add a date‑only task
+        row.configure(cursor="hand2")
+        row.bind("<Button-1>", lambda e: self._on_unscheduled_click())
         ctk.CTkLabel(
             row, text="Any time", width=60, anchor="e",
             font=ctk.CTkFont(size=12, weight="bold"),
@@ -227,6 +238,52 @@ class PlannerView(ctk.CTkFrame):
             title=f"Plan task for {self.current_date.isoformat()}",
         )
         data = dialog.show()
+        if data is None:
+            return
+        try:
+            self.task_controller.create_task(**data)
+        except Exception as exc:  # noqa: BLE001
+            from tkinter import messagebox
+            messagebox.showerror("Error", f"Could not create task: {exc}", parent=self)
+            return
+        self.refresh()
+        if self.on_change:
+            self.on_change()
+
+    def _on_slot_click(self, hour: int) -> None:
+        """Open quick add dialog for the given hour on the selected date."""
+        with self.task_controller.db.session() as session:
+            from ..models.category import Category
+            categories = session.query(Category).all()
+        defaults = {
+            "due_date": self.current_date,
+            "due_time": _dt.time(hour, 0),
+        }
+        dlg = QuickAddDialog(self.winfo_toplevel(), categories, defaults=defaults)
+        data = dlg.show()
+        if data is None:
+            return
+        try:
+            self.task_controller.create_task(**data)
+        except Exception as exc:  # noqa: BLE001
+            from tkinter import messagebox
+            messagebox.showerror("Error", f"Could not create task: {exc}", parent=self)
+            return
+        self.refresh()
+        if self.on_change:
+            self.on_change()
+
+    def _on_unscheduled_click(self) -> None:
+        """Open quick add dialog for a date-only task on the selected date."""
+        with self.task_controller.db.session() as session:
+            from ..models.category import Category
+            categories = session.query(Category).all()
+        defaults = {
+            "due_date": self.current_date,
+            # due_time left unspecified => None
+        }
+        dlg = QuickAddDialog(self.winfo_toplevel(), categories, defaults=defaults)
+        data = dlg.show()
         if data is None:
             return
         try:
